@@ -1,0 +1,128 @@
+<!-- src/views/DramasView.vue -->
+<script setup lang="ts">
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import http from "@/api/http";
+import { useAuthStore } from "@/stores/auth";
+
+const dramas = ref<any[]>([]);
+const loading = ref(true);
+const error = ref("");
+const successMessage = ref("");
+
+const auth = useAuthStore();
+const router = useRouter();
+
+async function fetchDramas() {
+  loading.value = true;
+  error.value = "";
+  try {
+    const res = await http.get("/dramas/");
+    dramas.value = res.data.sort((a, b) => b.id - a.id);
+  } catch (err) {
+    error.value = "Failed to load dramas";
+    console.error(err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+
+async function deleteDrama(id: number) {
+  if (!confirm("Are you sure you want to delete this drama?")) return;
+  try {
+    await http.delete(`/dramas/${id}/`);
+    dramas.value = dramas.value.filter((d) => d.id !== id);
+  } catch (err) {
+    console.error("Delete failed", err);
+    alert("Failed to delete drama");
+  }
+}
+
+// Move drama to top and navigate
+function openDrama(d: any) {
+  dramas.value = [d, ...dramas.value.filter((x) => x.id !== d.id)];
+  router.push({ name: "drama-detail", params: { id: d.id } });
+}
+
+onMounted(async () => {
+  const state = window.history.state as { newDrama?: any };
+  await fetchDramas(); // always load full list
+
+  if (state?.newDrama) {
+    // Move newly added drama to the top
+    dramas.value = [
+      state.newDrama,
+      ...dramas.value.filter(d => d.id !== state.newDrama.id)
+    ];
+
+    successMessage.value = `"${state.newDrama.title}" added successfully!`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => (successMessage.value = ""), 3000);
+  }
+});
+
+
+</script>
+
+<template>
+  <div style="padding: 20px;">
+    <h1>Dramas</h1>
+
+    <!-- Success message -->
+    <div
+      v-if="successMessage"
+      style="
+        background: #d4edda;
+        color: #155724;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+      "
+    >
+      {{ successMessage }}
+    </div>
+
+    <!-- Add Drama Button -->
+    <div v-if="auth.isAuthed" style="margin-bottom: 16px;">
+      <router-link
+        to="/add"
+        style="
+          display: inline-block;
+          padding: 8px 12px;
+          background: #4caf50;
+          color: white;
+          border-radius: 4px;
+          text-decoration: none;
+        "
+      >
+        ➕ Add Drama
+      </router-link>
+    </div>
+
+    <div v-if="loading">Loading dramas...</div>
+    <div v-else-if="error" style="color: red;">{{ error }}</div>
+    <div v-else>
+      <div
+        v-for="d in dramas"
+        :key="d.id"
+        style="display: inline-block; margin: 10px; text-align: center; width: 150px; cursor: pointer;"
+        @click="openDrama(d)"
+      >
+        <img
+          :src="d.poster_url || '/placeholder.png'"
+          alt="Poster"
+          style="width: 100%; border-radius: 8px; height: 225px; object-fit: cover;"
+        />
+        <p style="margin-top: 5px;">{{ d.title }}</p>
+        <button
+          v-if="auth.isAuthed"
+          @click.stop="deleteDrama(d.id)"
+          style="margin-top: 5px; padding: 5px 10px; background: #ff4d4d; color: white; border: none; border-radius: 4px; cursor: pointer;"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</template>

@@ -1,0 +1,17 @@
+// src/api/http.ts
+import axios from "axios";
+import { useAuthStore } from "@/stores/auth";
+
+const http = axios.create({
+  baseURL: "/api",
+});
+
+http.interceptors.request.use((config) => {
+  const auth = useAuthStore();
+  if (auth.token) {
+    config.headers.Authorization = `${auth.scheme} ${auth.token}`;
+  }
+  return config;
+});
+
+export default http;
