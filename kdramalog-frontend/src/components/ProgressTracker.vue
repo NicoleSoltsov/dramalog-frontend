@@ -2,35 +2,29 @@
 import { ref, onMounted } from "vue";
 import http from "@/api/http";
 
-const props = defineProps<{ dramaId: number; total?: number }>();
+const props = defineProps<{ dramaTitle: string; total?: number }>();
 const progress = ref<number>(0);
 const saving = ref(false);
 const error = ref("");
 let statusId: number | null = null;
 
-// We'll fetch the drama title first since the API uses title for `drama` field
-const dramaTitle = ref<string>("");
-
 const ensureStatus = async () => {
   try {
-    // Step 1: Get drama details so we know the title
-    const dramaRes = await http.get(`/dramas/${props.dramaId}/`);
-    dramaTitle.value = dramaRes.data.title;
-
-    // Step 2: Get all watch statuses
+    // Get all watch statuses for the current user
     const list = (await http.get(`/tracker/status/`)).data;
 
-    // Step 3: Match by title
-    const item = list.find((status: any) => status.drama === dramaTitle.value);
+    // Try to find this drama's tracker record
+    const item = list.find((status: any) => status.drama === props.dramaTitle);
 
     if (item) {
       statusId = item.id;
       progress.value = item.current_episode || 0;
     } else {
-      // Step 4: Create if not found
+      // Create tracker record if none exists
       const created = (
         await http.post(`/tracker/status/`, {
-          drama: dramaTitle.value, // backend expects title
+          drama: props.dramaTitle, // backend expects title
+          status: "plan", // default status
           current_episode: 0,
         })
       ).data;

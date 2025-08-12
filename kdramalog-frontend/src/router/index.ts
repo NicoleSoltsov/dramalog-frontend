@@ -12,6 +12,8 @@ const routes = [
   { path: "/", name: "dramas", component: DramasView, meta: { requiresAuth: true } },
   { path: "/dramas/:id", name: "drama-detail", component: DramaDetailView, meta: { requiresAuth: true } },
   { path: "/add", name: "add-drama", component: AddDramaView, meta: { requiresAuth: true } },
+  {path: '/add-drama-manual', name: 'add-drama-manual', component: () => import('@/views/AddDramaManualView.vue')}
+  
 ];
 
 const router = createRouter({ history: createWebHistory(), routes });

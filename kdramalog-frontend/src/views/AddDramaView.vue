@@ -48,5 +48,15 @@ async function addDrama() {
       </button>
       <p v-if="error" style="color: #b00020; margin-top: 8px;">{{ error }}</p>
     </form>
+
+    <!-- Manual add link -->
+    <div style="margin-top: 12px; text-align: center;">
+      <router-link
+        :to="{ name: 'add-drama-manual' }"
+        style="color: #2196f3; text-decoration: underline; font-size: 0.9rem;"
+      >
+        Can't find your drama? Add it manually
+      </router-link>
+    </div>
   </div>
 </template>

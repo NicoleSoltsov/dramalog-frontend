@@ -9,15 +9,20 @@ const dramas = ref<any[]>([]);
 const loading = ref(true);
 const error = ref("");
 const successMessage = ref("");
+const searchQuery = ref(""); // 🔹 NEW
 
 const auth = useAuthStore();
 const router = useRouter();
 
-async function fetchDramas() {
+async function fetchDramas(query = "") {
   loading.value = true;
   error.value = "";
   try {
-    const res = await http.get("/dramas/");
+    let url = "/dramas/";
+    if (query.trim()) {
+      url += `?search=${encodeURIComponent(query)}`; // 🔹 NEW
+    }
+    const res = await http.get(url);
     dramas.value = res.data.sort((a, b) => b.id - a.id);
   } catch (err) {
     error.value = "Failed to load dramas";
@@ -26,7 +31,6 @@ async function fetchDramas() {
     loading.value = false;
   }
 }
-
 
 async function deleteDrama(id: number) {
   if (!confirm("Are you sure you want to delete this drama?")) return;
@@ -39,7 +43,6 @@ async function deleteDrama(id: number) {
   }
 }
 
-// Move drama to top and navigate
 function openDrama(d: any) {
   dramas.value = [d, ...dramas.value.filter((x) => x.id !== d.id)];
   router.push({ name: "drama-detail", params: { id: d.id } });
@@ -47,22 +50,18 @@ function openDrama(d: any) {
 
 onMounted(async () => {
   const state = window.history.state as { newDrama?: any };
-  await fetchDramas(); // always load full list
+  await fetchDramas();
 
   if (state?.newDrama) {
-    // Move newly added drama to the top
     dramas.value = [
       state.newDrama,
       ...dramas.value.filter(d => d.id !== state.newDrama.id)
     ];
-
     successMessage.value = `"${state.newDrama.title}" added successfully!`;
     window.scrollTo({ top: 0, behavior: "smooth" });
     setTimeout(() => (successMessage.value = ""), 3000);
   }
 });
-
-
 </script>
 
 <template>
@@ -72,13 +71,7 @@ onMounted(async () => {
     <!-- Success message -->
     <div
       v-if="successMessage"
-      style="
-        background: #d4edda;
-        color: #155724;
-        padding: 10px;
-        border-radius: 6px;
-        margin-bottom: 16px;
-      "
+      style="background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; margin-bottom: 16px;"
     >
       {{ successMessage }}
     </div>
@@ -87,17 +80,26 @@ onMounted(async () => {
     <div v-if="auth.isAuthed" style="margin-bottom: 16px;">
       <router-link
         to="/add"
-        style="
-          display: inline-block;
-          padding: 8px 12px;
-          background: #4caf50;
-          color: white;
-          border-radius: 4px;
-          text-decoration: none;
-        "
+        style="display: inline-block; padding: 8px 12px; background: #4caf50; color: white; border-radius: 4px; text-decoration: none;"
       >
         ➕ Add Drama
       </router-link>
+    </div>
+
+    <!-- 🔹 Search Bar -->
+    <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+      <input
+        v-model="searchQuery"
+        @keyup.enter="fetchDramas(searchQuery)"
+        placeholder="Search for a drama you have added..."
+        style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px;"
+      />
+      <button
+        @click="fetchDramas(searchQuery)"
+        style="padding: 8px 12px; border: none; background: #4caf50; color: white; border-radius: 6px; cursor: pointer;"
+      >
+        Search
+      </button>
     </div>
 
     <div v-if="loading">Loading dramas...</div>
