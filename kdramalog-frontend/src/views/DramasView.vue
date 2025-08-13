@@ -108,7 +108,7 @@ watch(
       <input
         v-model="searchQuery"
         @keyup.enter="runSearch"
-        placeholder="Search for a drama you have added..."
+        placeholder="Find a drama you've added..."
         style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px;"
       />
       <button

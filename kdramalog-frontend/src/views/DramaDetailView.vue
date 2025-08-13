@@ -7,7 +7,7 @@ import ReviewForm from "@/components/ReviewForm.vue";
 import ProgressTracker from "@/components/ProgressTracker.vue";
 
 const route = useRoute();
-const id = Number(route.params.id);
+const id = Number(route.params.id); // this is the internal Drama PK
 const drama = ref<any>(null);
 const loading = ref(false);
 const error = ref("");
@@ -27,7 +27,7 @@ const loadDrama = async () => {
 };
 
 const refreshReviews = () => {
-  reviewListRef.value?.load(); // ✅ reload reviews instantly
+  reviewListRef.value?.load();
 };
 
 onMounted(loadDrama);
@@ -47,17 +47,21 @@ onMounted(loadDrama);
         />
         <div>
           <h2 style="margin:0 0 6px">{{ drama.title }}</h2>
-          <div>Episodes: {{ drama.episodes }}</div>
-          <ProgressTracker :dramaTitle="drama.title" :total="drama.total_episodes" />
+
+          <!-- Pass BOTH ids -->
+          <ProgressTracker
+            :dramaPk="id"
+            :tmdbId="Number(drama.tmdb_id)"
+            :total="Number(drama.total_episodes || 0)"
+          />
         </div>
       </div>
 
       <section style="margin-top:24px">
         <h3>Reviews</h3>
-        <!-- Now call refreshReviews when review is submitted -->
         <ReviewForm :dramaTitle="drama.title" @submitted="refreshReviews" />
         <ReviewList ref="reviewListRef" :dramaTitle="drama.title" />
       </section>
     </div>
   </div>
-</template>
+</template

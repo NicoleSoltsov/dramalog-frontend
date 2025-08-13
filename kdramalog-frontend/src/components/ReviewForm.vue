@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import http from "@/api/http";
 
-const props = defineProps<{ dramaTitle: string }>();
+const props = defineProps<{ dramaTmdbId: number }>();
 const emit = defineEmits<{ (e: "submitted"): void }>();
 
 const rating = ref(8);
@@ -15,15 +15,14 @@ const submit = async () => {
   error.value = "";
   try {
     await http.post("/reviews/", {
-      drama: props.dramaTitle,      // 👈 title, not id
-      rating: rating.value,         // 1–10
+      drama: props.dramaTmdbId, // send tmdb_id, not title
+      rating: rating.value,
       content: content.value,
     });
     content.value = "";
     rating.value = 8;
     emit("submitted");
   } catch (e: any) {
-    // Try to surface serializer errors if present
     const data = e?.response?.data;
     error.value =
       data?.drama?.[0] ||
