@@ -59,7 +59,7 @@ onMounted(loadDrama);
 
       <section style="margin-top:24px">
         <h3>Reviews</h3>
-        <ReviewForm :dramaTitle="drama.title" @submitted="refreshReviews" />
+        <ReviewForm :dramaTmdbId="Number(drama.tmdb_id)" @submitted="refreshReviews" />
         <ReviewList ref="reviewListRef" :dramaTitle="drama.title" />
       </section>
     </div>
