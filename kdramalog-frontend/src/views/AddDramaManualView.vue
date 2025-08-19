@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import http from "@/api/http";
 
 const router = useRouter();
+const route = useRoute();
+
 const loading = ref(false);
 const error = ref("");
 const form = ref({
@@ -22,7 +24,11 @@ async function submitManualDrama() {
   error.value = "";
   try {
     const res = await http.post("/dramas/", form.value);
-    router.push({ name: "dramas", state: { newDrama: res.data } });
+    router.push({
+      name: "dramas",
+      query: route.query,            // <-- preserve filters on return
+      state: { newDrama: res.data },
+    });
   } catch (err: any) {
     console.error(err);
     error.value = err?.response?.data?.error || "Failed to add drama.";
@@ -40,12 +46,18 @@ async function submitManualDrama() {
       <textarea v-model="form.description" placeholder="Description" style="width: 100%; padding: 8px; margin-bottom: 10px;"></textarea>
       <input type="number" v-model.number="form.release_year" placeholder="Release Year" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
       <input type="number" v-model.number="form.total_episodes" placeholder="Total Episodes" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
-      <input v-model="form.genres" placeholder="Genres (comma separated)" 
-             @change="form.genres = form.genres.split(',').map(g => g.trim())"
-             style="width: 100%; padding: 8px; margin-bottom: 10px;" />
-      <input v-model="form.moods" placeholder="Moods (comma separated)" 
-             @change="form.moods = form.moods.split(',').map(m => m.trim())"
-             style="width: 100%; padding: 8px; margin-bottom: 10px;" />
+      <input
+        v-model="(form as any).genres"
+        placeholder="Genres (comma separated)"
+        @change="(form as any).genres = (form as any).genres.split(',').map((g: string) => g.trim())"
+        style="width: 100%; padding: 8px; margin-bottom: 10px;"
+      />
+      <input
+        v-model="(form as any).moods"
+        placeholder="Moods (comma separated)"
+        @change="(form as any).moods = (form as any).moods.split(',').map((m: string) => m.trim())"
+        style="width: 100%; padding: 8px; margin-bottom: 10px;"
+      />
       <input v-model="form.spotify_link" placeholder="Spotify OST Link" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
       <input v-model="form.poster_url" placeholder="Poster URL" style="width: 100%; padding: 8px; margin-bottom: 10px;" />
 

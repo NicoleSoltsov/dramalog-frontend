@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import http from "@/api/http";
 
 type Candidate = {
@@ -15,16 +15,15 @@ const title = ref("");
 const loading = ref(false);
 const error = ref("");
 const router = useRouter();
+const route = useRoute();
 
 const candidates = ref<Candidate[]>([]);
 const selectedIndex = ref<number | null>(null);
-const searched = ref(false);
 
 async function search() {
   error.value = "";
   candidates.value = [];
   selectedIndex.value = null;
-  searched.value = false;
 
   const q = title.value.trim();
   if (!q) {
@@ -35,8 +34,6 @@ async function search() {
   loading.value = true;
   try {
     const { data } = await http.get("/kdramas/search/", { params: { q } });
-    searched.value = true;
-
     if (Array.isArray(data) && data.length > 0) {
       candidates.value = data;
       selectedIndex.value = 0;
@@ -78,7 +75,11 @@ async function addByName(name: string, tmdbId?: number) {
       title: name,
       tmdb_id: tmdbId ?? null,
     });
-    router.push({ name: "dramas", state: { newDrama: res.data } });
+    router.push({
+      name: "dramas",
+      query: route.query,             // <-- preserve filters
+      state: { newDrama: res.data },
+    });
   } catch (err: any) {
     error.value = err?.response?.data?.error || "Failed to add drama.";
   } finally {
@@ -91,7 +92,6 @@ async function addByName(name: string, tmdbId?: number) {
   <div style="max-width: 400px; margin: 24px auto;">
     <h1>Add Drama</h1>
 
-    <!-- Search -->
     <form @submit.prevent="search">
       <input
         v-model="title"
@@ -108,14 +108,10 @@ async function addByName(name: string, tmdbId?: number) {
       <p v-if="error" style="color: #b00020; margin-top: 8px;">{{ error }}</p>
     </form>
 
-    <!-- Preview -->
     <div v-if="candidates.length" style="margin-top:12px;">
       <p style="margin: 8px 0;">Is this the right K‑drama?</p>
 
-      <div
-        v-if="selectedIndex !== null"
-        style="border:1px solid #ddd; border-radius:8px; padding:10px;"
-      >
+      <div v-if="selectedIndex !== null" style="border:1px solid #ddd; border-radius:8px; padding:10px;">
         <img
           v-if="candidates[selectedIndex].poster_url"
           :src="candidates[selectedIndex].poster_url!"
@@ -124,9 +120,7 @@ async function addByName(name: string, tmdbId?: number) {
         />
         <div style="font-weight:700; margin-bottom:4px;">
           {{ candidates[selectedIndex].title }}
-          <span v-if="candidates[selectedIndex].year" style="opacity:.7">
-            ({{ candidates[selectedIndex].year }})
-          </span>
+          <span v-if="candidates[selectedIndex].year" style="opacity:.7">({{ candidates[selectedIndex].year }})</span>
         </div>
         <div style="font-size:.92rem; opacity:.85; max-height:4.6em; overflow:hidden;">
           {{ candidates[selectedIndex].overview || "No summary available." }}
@@ -150,7 +144,6 @@ async function addByName(name: string, tmdbId?: number) {
         </div>
       </div>
 
-      <!-- Quick list to jump to other candidates -->
       <div style="margin-top:10px;">
         <div
           v-for="(c, i) in candidates"
@@ -170,7 +163,6 @@ async function addByName(name: string, tmdbId?: number) {
       </div>
     </div>
 
-    <!-- Manual add link -->
     <div style="margin-top: 12px; text-align: center;">
       <router-link
         :to="{ name: 'add-drama-manual' }"

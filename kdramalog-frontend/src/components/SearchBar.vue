@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import http from "@/api/http";
 
 type Candidate = {
@@ -12,6 +12,7 @@ type Candidate = {
 };
 
 const router = useRouter();
+const route = useRoute();
 
 const title = ref("");
 const loading = ref(false);
@@ -47,11 +48,9 @@ async function search() {
       error.value = "No matches found. Try another title.";
     }
   } catch (e: any) {
-    // If preview endpoint doesn’t exist, guide user to use the Add button (fallback)
     if (e?.response?.status === 404) {
-      error.value =
-        "Preview not available. You can still add directly with the button below.";
-      searched.value = true; // show the direct-add UI
+      error.value = "Preview not available. You can still add directly with the button below.";
+      searched.value = true;
     } else {
       error.value = e?.response?.data?.detail || "Search failed. Please try again.";
     }
@@ -61,7 +60,6 @@ async function search() {
 }
 
 async function addDirect() {
-  // fallback: use whatever user typed
   await addByName(title.value.trim());
 }
 
@@ -80,10 +78,13 @@ async function addByName(name: string) {
   error.value = "";
   try {
     const res = await http.post("/kdramas/add-by-name/", { title: name });
-    router.push({ name: "dramas", state: { newDrama: res.data } });
+    router.push({
+      name: "dramas",
+      query: route.query,             // <-- keep current filters
+      state: { newDrama: res.data },
+    });
   } catch (err: any) {
     error.value = err?.response?.data?.error || "Failed to add drama.";
-    // keep candidates on screen so user can try again
   } finally {
     loading.value = false;
   }

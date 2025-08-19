@@ -1,4 +1,3 @@
-<!-- src/views/DramasView.vue -->
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
@@ -11,8 +10,29 @@ const dramas = ref<Drama[]>([]);
 const loading = ref(true);
 const error = ref("");
 const successMessage = ref("");
+
+// search
 const searchQuery = ref("");
 
+// filters (UI state)
+const statusOptions = [
+  { v: "plan", label: "Plan" },
+  { v: "watching", label: "Watching" },
+  { v: "on_hold", label: "On Hold" },
+  { v: "dropped", label: "Dropped" },
+  { v: "finished", label: "Finished" },
+];
+const selectedStatuses = ref<string[]>([]);
+const genresInput = ref("");
+const lengthBucket = ref<"" | "short" | "medium" | "long">("");
+const decade = ref("");
+const yearFrom = ref<string>("");
+const yearTo = ref<string>("");
+const hasReview = ref<"" | "true" | "false">("");
+const sortOrder = ref<"updated" | "created" | "title">("updated");
+const myRatingOrder = ref<"" | "asc" | "desc">("");
+
+// auth / routing
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
@@ -42,12 +62,54 @@ function exitBulkMode() {
   selected.value = new Set();
 }
 
-async function fetchDramas(query = "") {
+/* ---------------- helpers: build & read query params ---------------- */
+function buildQueryParams() {
+  const q: Record<string, string> = {};
+  if (searchQuery.value.trim()) q.q = searchQuery.value.trim();
+  if (selectedStatuses.value.length) q.status = selectedStatuses.value.join(",");
+  const g = genresInput.value.split(",").map(s => s.trim()).filter(Boolean);
+  if (g.length) q.genre = g.join(",");
+  if (lengthBucket.value) q.length = lengthBucket.value;
+  if (decade.value) {
+    q.year_decade = decade.value;
+  } else {
+    if (yearFrom.value && /^\d{4}$/.test(yearFrom.value)) q.year_from = yearFrom.value;
+    if (yearTo.value && /^\d{4}$/.test(yearTo.value)) q.year_to = yearTo.value;
+  }
+  if (hasReview.value) q.has_review = hasReview.value;
+  if (myRatingOrder.value) {
+    q.my_rating_order = myRatingOrder.value;
+  } else {
+    q.order = sortOrder.value || "updated";
+  }
+  return q;
+}
+
+function applyFromRoute(query: Record<string, any>) {
+  searchQuery.value = (query.q as string) || "";
+  const statusStr = (query.status as string) || "";
+  selectedStatuses.value = statusStr ? statusStr.split(",").map(s => s.trim()).filter(Boolean) : [];
+  genresInput.value = (query.genre as string) || "";
+  lengthBucket.value = (query.length as "short" | "medium" | "long") || "";
+  decade.value = (query.year_decade as string) || "";
+  yearFrom.value = (query.year_from as string) || "";
+  yearTo.value = (query.year_to as string) || "";
+  const hr = (query.has_review as string) || "";
+  hasReview.value = hr === "true" || hr === "false" ? (hr as "true" | "false") : "";
+  const mro = (query.my_rating_order as string) || "";
+  myRatingOrder.value = mro === "asc" || mro === "desc" ? (mro as "asc" | "desc") : "";
+  const ord = (query.order as string) || "updated";
+  sortOrder.value = ord === "created" || ord === "title" ? (ord as any) : "updated";
+}
+
+/* ---------------- fetching ---------------- */
+async function fetchDramas() {
   loading.value = true;
   error.value = "";
   try {
-    let url = "/dramas/";
-    if (query.trim()) url += `?search=${encodeURIComponent(query)}`;
+    const params = buildQueryParams();
+    const usp = new URLSearchParams(params).toString();
+    const url = `/dramas/${usp ? "?" + usp : ""}`;
     const res = await http.get(url);
     dramas.value = (res.data?.results ?? res.data).sort((a: any, b: any) => b.id - a.id);
   } catch (err) {
@@ -55,72 +117,39 @@ async function fetchDramas(query = "") {
     console.error(err);
   } finally {
     loading.value = false;
-    // keep selection valid after refresh
     const ids = new Set(dramas.value.map(d => d.id));
     selected.value = new Set([...selected.value].filter(id => ids.has(id)));
     if (selected.value.size === 0 && bulkMode.value) {
-      // if nothing left selected, auto-exit bulk mode for UX
       bulkMode.value = false;
     }
   }
 }
 
 function runSearch() {
-  const q = searchQuery.value.trim();
-  router.push({ name: "dramas", query: q ? { q } : {} });
+  router.push({ name: "dramas", query: buildQueryParams() });
 }
 function clearSearch() {
   searchQuery.value = "";
   runSearch();
 }
 
-async function deleteDrama(id: number) {
-  if (!confirm("Are you sure you want to delete this drama?")) return;
-  try {
-    await http.delete(`/dramas/${id}/`);
-    dramas.value = dramas.value.filter((d: any) => d.id !== id);
-    selected.value.delete(id);
-  } catch (err) {
-    console.error("Delete failed", err);
-    alert("Failed to delete drama");
-  }
-}
-
-async function bulkDelete() {
-  if (selected.value.size === 0) return;
-  if (!confirm(`Delete ${selected.value.size} drama(s)? This cannot be undone.`)) return;
-  try {
-    await http.post("/dramas/bulk-delete/", {
-      ids: Array.from(selected.value),
-    });
-    await fetchDramas(searchQuery.value);
-    exitBulkMode();
-    successMessage.value = "Selected dramas deleted.";
-    setTimeout(() => (successMessage.value = ""), 2500);
-  } catch (e: any) {
-    console.error(e);
-    alert(e?.response?.data?.error || "Bulk delete failed");
-  }
-}
-
+/* Preserve filters when navigating to details */
 function openDrama(d: Drama) {
-  // bump clicked drama to top in current view for a nice UX
   dramas.value = [d, ...dramas.value.filter((x: any) => x.id !== d.id)];
-  router.push({ name: "drama-detail", params: { id: d.id } });
+  router.push({
+    name: "drama-detail",
+    params: { id: d.id },
+    query: route.query, // <-- keep current filters
+  });
 }
 
-// React to URL ?q= changes; also runs immediately on mount
+/* react to URL changes (and on mount) */
 watch(
-  () => route.query.q,
+  () => route.query,
   async (q) => {
-    const val = (q as string) || "";
-    searchQuery.value = val;
-
-    // Handle "newly added" toast once
+    applyFromRoute(q as Record<string, any>);
     const state = window.history.state as { newDrama?: any } | null;
-
-    await fetchDramas(val);
-
+    await fetchDramas();
     if (state?.newDrama) {
       dramas.value = [
         state.newDrama,
@@ -140,7 +169,6 @@ watch(
   <div style="padding: 20px;">
     <h1>Dramas</h1>
 
-    <!-- Success message -->
     <div
       v-if="successMessage"
       style="background: #d4edda; color: #155724; padding: 10px; border-radius: 6px; margin-bottom: 16px;"
@@ -148,33 +176,25 @@ watch(
       {{ successMessage }}
     </div>
 
-    <!-- ACTIONS (top row) -->
+    <!-- ACTIONS -->
     <div style="display:flex; gap:8px; align-items:center; margin-bottom: 12px; flex-wrap:wrap;">
-      <!-- Add Drama Button -->
       <router-link
         v-if="auth.isAuthed && !bulkMode"
         to="/add"
         style="display: inline-block; padding: 8px 12px; background: #4caf50; color: white; border-radius: 6px; text-decoration: none;"
-      >
-        Add Drama
-      </router-link>
+      >Add Drama</router-link>
 
-      <!-- Bulk controls -->
       <button
         v-if="auth.isAuthed"
         @click="bulkMode ? exitBulkMode() : (bulkMode = true)"
         style="padding: 8px 12px; border: 1px solid #ccc; background: #f6f6f6; border-radius: 6px; cursor: pointer;"
-      >
-        {{ bulkMode ? "Cancel" : "Select" }}
-      </button>
+      >{{ bulkMode ? "Cancel" : "Select" }}</button>
 
       <button
         v-if="auth.isAuthed && bulkMode"
         @click="toggleAll"
         style="padding: 8px 12px; border: 1px solid #ccc; background: #f6f6f6; border-radius: 6px; cursor: pointer;"
-      >
-        {{ allSelected ? "Unselect All" : "Select All" }}
-      </button>
+      >{{ allSelected ? "Unselect All" : "Select All" }}</button>
 
       <button
         v-if="auth.isAuthed && bulkMode"
@@ -182,13 +202,11 @@ watch(
         @click="bulkDelete"
         style="padding: 8px 12px; background: #ff4d4d; color: white; border: none; border-radius: 6px; cursor: pointer; opacity: var(--op, 1);"
         :style="{ '--op': selectedCount === 0 ? 0.6 : 1 }"
-      >
-        Delete ({{ selectedCount }})
-      </button>
+      >Delete ({{ selectedCount }})</button>
     </div>
 
-    <!-- SEARCH (full width, below actions) -->
-    <div style="margin-bottom: 20px;">
+    <!-- SEARCH -->
+    <div style="margin-bottom: 10px;">
       <div style="display:flex; gap:8px; align-items:center;">
         <input
           v-model="searchQuery"
@@ -199,16 +217,92 @@ watch(
         <button
           @click="runSearch"
           style="padding: 10px 14px; border: none; background: #4caf50; color: white; border-radius: 8px; cursor: pointer; white-space:nowrap;"
-        >
-          Search
-        </button>
+        >Search</button>
         <button
           v-if="searchQuery"
           @click="clearSearch"
           style="padding: 10px 14px; border: 1px solid #ccc; background: #f6f6f6; border-radius: 8px; cursor: pointer; white-space:nowrap;"
-        >
-          Clear
-        </button>
+        >Clear</button>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #eee; border-radius: 8px;">
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <span style="font-weight:600;">Status:</span>
+          <label v-for="s in statusOptions" :key="s.v" style="display:flex; gap:6px; align-items:center;">
+            <input type="checkbox" :value="s.v" v-model="selectedStatuses" />
+            <span>{{ s.label }}</span>
+          </label>
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center; min-width:240px; flex:1;">
+          <span style="font-weight:600;">Genres:</span>
+          <input
+            v-model="genresInput"
+            placeholder="Romance, Thriller"
+            style="flex:1; padding:6px 8px; border:1px solid #ccc; border-radius:6px;"
+          />
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-weight:600;">Length:</span>
+          <select v-model="lengthBucket" style="padding:6px 8px; border:1px solid #ccc; border-radius:6px;">
+            <option value="">Any</option>
+            <option value="short">≤12 eps</option>
+            <option value="medium">13–24 eps</option>
+            <option value="long">25+ eps</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <span style="font-weight:600;">Release:</span>
+          <select v-model="decade" style="padding:6px 8px; border:1px solid #ccc; border-radius:6px;">
+            <option value="">Any decade</option>
+            <option>2020s</option>
+            <option>2010s</option>
+            <option>2000s</option>
+            <option>1990s</option>
+          </select>
+          <span style="opacity:.7;">or</span>
+          <input v-model="yearFrom" placeholder="From (yyyy)" maxlength="4" style="width:110px; padding:6px 8px; border:1px solid #ccc; border-radius:6px;" />
+          <input v-model="yearTo" placeholder="To (yyyy)" maxlength="4" style="width:110px; padding:6px 8px; border:1px solid #ccc; border-radius:6px;" />
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-weight:600;">Has Review:</span>
+          <select v-model="hasReview" style="padding:6px 8px; border:1px solid #ccc; border-radius:6px;">
+            <option value="">Any</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-weight:600;">Sort:</span>
+          <select v-model="sortOrder" :disabled="!!myRatingOrder" title="Disabled when sorting by my rating" style="padding:6px 8px; border:1px solid #ccc; border-radius:6px;">
+            <option value="updated">Most Recently Updated</option>
+            <option value="created">Recently Added</option>
+            <option value="title">Title (A–Z)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-weight:600;">My Rating:</span>
+          <select v-model="myRatingOrder" title="Overrides Sort" style="padding:6px 8px; border:1px solid #ccc; border-radius:6px;">
+            <option value="">—</option>
+            <option value="desc">Highest → Lowest</option>
+            <option value="asc">Lowest → Highest</option>
+          </select>
+        </div>
+
+        <div style="margin-left:auto;">
+          <button
+            @click="runSearch"
+            style="padding:8px 12px; background:#4caf50; color:#fff; border:none; border-radius:6px; cursor:pointer;"
+          >Apply Filters</button>
+        </div>
       </div>
     </div>
 
@@ -216,46 +310,33 @@ watch(
     <div v-else-if="error" style="color: red;">{{ error }}</div>
 
     <div v-else>
-      <!-- Fixed 3-column grid, bigger posters, wider spacing -->
       <div
         style="
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          display: flex;
+          flex-wrap: wrap;
           gap: 32px;
-          max-width: 1200px;
-          margin: 0 auto;
+          justify-content: center;
+          width: 100%;
         "
       >
         <div
           v-for="d in dramas"
           :key="d.id"
-          style="text-align: center; cursor: pointer; background: white; border-radius: 8px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); position: relative;"
+          style="text-align: center; cursor: pointer; background: white; border-radius: 8px; padding: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); position: relative; width: 200px;"
           @click="!bulkMode && openDrama(d)"
         >
-          <!-- Checkbox in bulk mode -->
           <label v-if="bulkMode" style="position:absolute; top:10px; left:10px; background:white; border-radius:4px; padding:2px 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.15);">
-            <input
-              type="checkbox"
-              :checked="selected.has(d.id)"
-              @change.stop="toggleSelect(d.id)"
-            />
+            <input type="checkbox" :checked="selected.has(d.id)" @change.stop="toggleSelect(d.id)" />
           </label>
 
-          <img
-            :src="d.poster_url || '/placeholder.png'"
-            alt="Poster"
-            style="width: 100%; border-radius: 6px; height: 320px; object-fit: cover;"
-          />
+          <img :src="d.poster_url || '/placeholder.png'" alt="Poster" style="width: 100%; border-radius: 6px; height: 320px; object-fit: cover;" />
           <p style="margin-top: 10px; font-weight: 500; font-size: 1rem;">{{ d.title }}</p>
 
-          <!-- Single delete (still available when not in bulk mode) -->
           <button
             v-if="auth.isAuthed && !bulkMode"
             @click.stop="deleteDrama(d.id)"
             style="margin-top: 8px; padding: 6px 12px; background: #ff4d4d; color: white; border: none; border-radius: 4px; cursor: pointer;"
-          >
-            Delete
-          </button>
+          >Delete</button>
         </div>
       </div>
     </div>

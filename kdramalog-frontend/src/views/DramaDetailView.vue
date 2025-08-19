@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import http from "@/api/http";
 import ReviewList from "@/components/ReviewList.vue";
 import ReviewForm from "@/components/ReviewForm.vue";
 import ProgressTracker from "@/components/ProgressTracker.vue";
 
 const route = useRoute();
-const id = Number(route.params.id); // this is the internal Drama PK
+const router = useRouter();
+
+const id = Number(route.params.id); // internal Drama PK
 const drama = ref<any>(null);
 const loading = ref(false);
 const error = ref("");
@@ -30,11 +32,23 @@ const refreshReviews = () => {
   reviewListRef.value?.load();
 };
 
+function backToList() {
+  // preserve filters / search in URL when returning
+  router.push({ name: "dramas", query: route.query });
+}
+
 onMounted(loadDrama);
 </script>
 
 <template>
   <div style="padding:16px">
+    <button
+      @click="backToList"
+      style="margin-bottom:12px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;background:#f6f6f6;cursor:pointer"
+    >
+      ← Back to Dramas
+    </button>
+
     <p v-if="loading">Loading…</p>
     <p v-if="error" style="color:#b00020">{{ error }}</p>
 
@@ -48,7 +62,6 @@ onMounted(loadDrama);
         <div>
           <h2 style="margin:0 0 6px">{{ drama.title }}</h2>
 
-          <!-- Pass BOTH ids -->
           <ProgressTracker
             :dramaPk="id"
             :tmdbId="Number(drama.tmdb_id)"
@@ -60,8 +73,9 @@ onMounted(loadDrama);
       <section style="margin-top:24px">
         <h3>Reviews</h3>
         <ReviewForm :dramaTmdbId="Number(drama.tmdb_id)" @submitted="refreshReviews" />
-        <ReviewList ref="reviewListRef" :dramaTitle="drama.title" />
+        <!-- Pass TMDB id (fixes duplicate-by-title issue) -->
+        <ReviewList ref="reviewListRef" :dramaTmdbId="Number(drama.tmdb_id)" />
       </section>
     </div>
   </div>
-</template
+</template>

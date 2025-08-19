@@ -1,9 +1,8 @@
-<!-- src/components/ReviewList.vue -->
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from "vue";
 import http from "@/api/http";
 
-const props = defineProps<{ dramaTitle: string }>(); // or accept dramaId if you prefer
+const props = defineProps<{ dramaTmdbId: number }>();
 
 const allReviews = ref<any[]>([]);
 const loading = ref(false);
@@ -16,19 +15,22 @@ const editRating = ref<number>(8);
 const saving = ref(false);
 const deletingId = ref<number | null>(null);
 
-// Fetch ALL reviews (for the current user) with pagination support
+// Fetch ONLY reviews for this TMDB id (handles pagination)
 const load = async () => {
+  if (!props.dramaTmdbId) return;
   loading.value = true;
   error.value = "";
   allReviews.value = [];
   try {
-    let url: string | null = "/reviews/";
+    let url: string | null = `/reviews/?drama_tmdb_id=${props.dramaTmdbId}`;
     while (url) {
       const { data } = await http.get(url);
       const items = data?.results ?? data; // paginated or plain
       allReviews.value.push(...items);
-      url = data?.next || null; // DRF pagination has absolute URL; axios can handle it
+      url = data?.next || null; // DRF pagination has absolute URL
     }
+    // newest first
+    allReviews.value.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   } catch (e: any) {
     error.value = e?.response?.data?.detail || "Failed to load reviews";
   } finally {
@@ -36,26 +38,6 @@ const load = async () => {
   }
 };
 
-// FRONTEND-ONLY FILTER (title match) + SORT NEWEST FIRST
-const filtered = computed(() => {
-  if (!props.dramaTitle) return [];
-  const target = props.dramaTitle.toLowerCase();
-
-  return allReviews.value
-    .filter((r) => {
-      const titleStr =
-        typeof r.drama === "string" ? r.drama : r.drama?.title ?? "";
-      return titleStr.toLowerCase() === target;
-    })
-    .slice()
-    .sort((a, b) => {
-      const ta = new Date(a.created_at || 0).getTime();
-      const tb = new Date(b.created_at || 0).getTime();
-      return tb - ta; // newest first
-    });
-});
-
-// Nice date-time for display
 function formatDateTime(dt: string | undefined) {
   if (!dt) return "";
   const d = new Date(dt);
@@ -73,17 +55,14 @@ function formatDateTime(dt: string | undefined) {
 function beginEdit(r: any) {
   editingId.value = r.id;
   editContent.value = r.content ?? "";
-  // coerce to 1..10 boundaries to be safe
   const n = Number(r.rating ?? 8);
   editRating.value = isNaN(n) ? 8 : Math.min(10, Math.max(1, n));
 }
-
 function cancelEdit() {
   editingId.value = null;
   editContent.value = "";
   editRating.value = 8;
 }
-
 async function saveEdit(id: number) {
   if (saving.value) return;
   saving.value = true;
@@ -92,18 +71,12 @@ async function saveEdit(id: number) {
       content: (editContent.value || "").trim(),
       rating: Number(editRating.value),
     };
-    // basic client-side validation
     if (!payload.content) throw new Error("Content cannot be empty.");
-    if (payload.rating < 1 || payload.rating > 10) {
-      throw new Error("Rating must be between 1 and 10.");
-    }
+    if (payload.rating < 1 || payload.rating > 10) throw new Error("Rating must be between 1 and 10.");
 
     const { data } = await http.patch(`/reviews/${id}/`, payload);
-    // update in local list
     const idx = allReviews.value.findIndex((x) => x.id === id);
-    if (idx !== -1) {
-      allReviews.value[idx] = { ...allReviews.value[idx], ...data };
-    }
+    if (idx !== -1) allReviews.value[idx] = { ...allReviews.value[idx], ...data };
     cancelEdit();
   } catch (e: any) {
     const apiErr =
@@ -117,7 +90,6 @@ async function saveEdit(id: number) {
     saving.value = false;
   }
 }
-
 async function deleteReview(id: number) {
   if (deletingId.value) return;
   if (!confirm("Delete this review? This cannot be undone.")) return;
@@ -134,7 +106,7 @@ async function deleteReview(id: number) {
 }
 
 onMounted(load);
-watch(() => props.dramaTitle, load);
+watch(() => props.dramaTmdbId, load, { immediate: false });
 
 defineExpose({ load });
 </script>
@@ -146,7 +118,7 @@ defineExpose({ load });
 
     <ul v-if="!loading && !error" style="display:grid;gap:8px;list-style:none;padding:0">
       <li
-        v-for="r in filtered"
+        v-for="r in allReviews"
         :key="r.id"
         style="border:1px solid #ddd;padding:8px;border-radius:8px"
       >
@@ -174,8 +146,8 @@ defineExpose({ load });
             </div>
           </div>
 
-          <div style="font-weight:600; margin-top:6px;">⭐ {{ r.rating }}/10</div>
-          <p style="margin:.25rem 0 0; white-space:pre-wrap;">{{ r.content }}</p>
+          <div style="font-weight:600; margin-top:6px; text-align:center;">⭐ {{ r.rating }}/10</div>
+          <p style="margin:.25rem 0 0; white-space:pre-wrap; text-align:center;">{{ r.content }}</p>
         </template>
 
         <!-- EDIT MODE -->
@@ -185,7 +157,7 @@ defineExpose({ load });
           </div>
 
           <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-            <label for="rating-{{r.id}}">Rating</label>
+            <label :for="`rating-${r.id}`">Rating</label>
             <input
               :id="`rating-${r.id}`"
               type="number"
@@ -223,7 +195,7 @@ defineExpose({ load });
         </template>
       </li>
 
-      <li v-if="!loading && filtered.length === 0" style="opacity:.7">No reviews yet.</li>
+      <li v-if="!loading && allReviews.length === 0" style="opacity:.7">No reviews yet.</li>
     </ul>
   </div>
 </template>
