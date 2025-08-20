@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import http from "@/api/http";
 import { useAuthStore } from "@/stores/auth";
@@ -23,7 +23,8 @@ const statusOptions = [
   { v: "finished", label: "Finished" },
 ];
 const selectedStatuses = ref<string[]>([]);
-const genresInput = ref("");
+const genres = ref<{ id: number; name: string }[]>([]);
+const selectedGenres = ref<string>(""); // single-select with "Any" default
 const lengthBucket = ref<"" | "short" | "medium" | "long">("");
 const decade = ref("");
 const yearFrom = ref<string>("");
@@ -69,8 +70,7 @@ function buildQueryParams() {
     q.search = searchQuery.value.trim();
   }
   if (selectedStatuses.value.length) q.status = selectedStatuses.value.join(",");
-  const g = genresInput.value.split(",").map(s => s.trim()).filter(Boolean);
-  if (g.length) q.genre = g.join(",");
+  if (selectedGenres.value) q.genre = selectedGenres.value;
   if (lengthBucket.value) q.length = lengthBucket.value;
   if (decade.value) {
     q.year_decade = decade.value;
@@ -91,7 +91,8 @@ function applyFromRoute(query: Record<string, any>) {
   searchQuery.value = (query.search as string) || "";
   const statusStr = (query.status as string) || "";
   selectedStatuses.value = statusStr ? statusStr.split(",").map(s => s.trim()).filter(Boolean) : [];
-  genresInput.value = (query.genre as string) || "";
+  const genreStr = (query.genre as string) || "";
+  selectedGenres.value = genreStr;
   lengthBucket.value = (query.length as "short" | "medium" | "long") || "";
   decade.value = (query.year_decade as string) || "";
   yearFrom.value = (query.year_from as string) || "";
@@ -113,7 +114,8 @@ async function fetchDramas() {
     const usp = new URLSearchParams(params).toString();
     const url = `/dramas/${usp ? "?" + usp : ""}`;
     const res = await http.get(url);
-    dramas.value = (res.data?.results ?? res.data).sort((a: any, b: any) => b.id - a.id);
+    // IMPORTANT FIX: do NOT force-sort by id here; let backend sorting (or rating order) apply
+    dramas.value = (res.data?.results ?? res.data);
   } catch (err) {
     error.value = "Failed to load dramas";
     console.error(err);
@@ -124,6 +126,19 @@ async function fetchDramas() {
     if (selected.value.size === 0 && bulkMode.value) {
       bulkMode.value = false;
     }
+  }
+}
+
+async function fetchGenres() {
+  try {
+    const res = await http.get("/dramas/my-genres/"); // returns ["Romance","Thriller",...]
+    genres.value = (res.data || []).map((name: string, idx: number) => ({
+      id: idx,
+      name,
+    }));
+  } catch (err) {
+    console.error("Failed to load genres", err);
+    genres.value = [];
   }
 }
 
@@ -139,7 +154,7 @@ function clearSearch() {
 function clearFilters() {
   searchQuery.value = "";
   selectedStatuses.value = [];
-  genresInput.value = "";
+  selectedGenres.value = "";
   lengthBucket.value = "";
   decade.value = "";
   yearFrom.value = "";
@@ -192,7 +207,7 @@ async function deleteDrama(id: number) {
     setTimeout(() => (successMessage.value = ""), 3000);
   } catch (err) {
     console.error(err);
-    error.value = "Failed to delete drama.";
+    error.value = "Failed to delete dramas.";
   }
 }
 
@@ -216,6 +231,10 @@ watch(
   },
   { immediate: true }
 );
+
+onMounted(() => {
+  fetchGenres();
+});
 </script>
 
 <template>
@@ -292,11 +311,13 @@ watch(
 
         <div style="display:flex; gap:6px; align-items:center; min-width:240px; flex:1;">
           <span style="font-weight:600;">Genres:</span>
-          <input
-            v-model="genresInput"
-            placeholder="Romance, Thriller"
+          <select
+            v-model="selectedGenres"
             style="flex:1; padding:6px 8px; border:1px solid #ccc; border-radius:6px;"
-          />
+          >
+            <option value="">Any</option>
+            <option v-for="g in genres" :key="g.id" :value="g.name">{{ g.name }}</option>
+          </select>
         </div>
 
         <div style="display:flex; gap:6px; align-items:center;">
@@ -399,3 +420,4 @@ watch(
     </div>
   </div>
 </template>
+
