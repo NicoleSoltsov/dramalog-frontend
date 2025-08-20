@@ -66,7 +66,6 @@ function exitBulkMode() {
 function buildQueryParams() {
   const q: Record<string, string> = {};
   if (searchQuery.value.trim()) {
-    // ✅ FIX: use "search" instead of "q"
     q.search = searchQuery.value.trim();
   }
   if (selectedStatuses.value.length) q.status = selectedStatuses.value.join(",");
@@ -89,7 +88,6 @@ function buildQueryParams() {
 }
 
 function applyFromRoute(query: Record<string, any>) {
-  // ✅ FIX: also read "search"
   searchQuery.value = (query.search as string) || "";
   const statusStr = (query.status as string) || "";
   selectedStatuses.value = statusStr ? statusStr.split(",").map(s => s.trim()).filter(Boolean) : [];
@@ -137,19 +135,38 @@ function clearSearch() {
   runSearch();
 }
 
+/* NEW: Clear all filters */
+function clearFilters() {
+  searchQuery.value = "";
+  selectedStatuses.value = [];
+  genresInput.value = "";
+  lengthBucket.value = "";
+  decade.value = "";
+  yearFrom.value = "";
+  yearTo.value = "";
+  hasReview.value = "";
+  sortOrder.value = "updated";
+  myRatingOrder.value = "";
+
+  runSearch();
+}
+
 /* Preserve filters when navigating to details */
 function openDrama(d: Drama) {
   dramas.value = [d, ...dramas.value.filter((x: any) => x.id !== d.id)];
   router.push({
     name: "drama-detail",
     params: { id: d.id },
-    query: route.query, // <-- keep current filters
+    query: route.query,
   });
 }
 
 /* Bulk delete handler */
 async function bulkDelete() {
   if (selectedCount.value === 0) return;
+  const confirmed = window.confirm(`Are you sure you want to delete ${selectedCount.value} drama(s)?`);
+  if (!confirmed) return;
+
   try {
     const ids = [...selected.value];
     await http.post("/dramas/bulk-delete/", { ids });
@@ -165,6 +182,9 @@ async function bulkDelete() {
 
 /* Delete single drama */
 async function deleteDrama(id: number) {
+  const confirmed = window.confirm("Are you sure you want to delete this drama?");
+  if (!confirmed) return;
+
   try {
     await http.delete(`/dramas/${id}/`);
     dramas.value = dramas.value.filter(d => d.id !== id);
@@ -330,11 +350,15 @@ watch(
           </select>
         </div>
 
-        <div style="margin-left:auto;">
+        <div style="margin-left:auto; display:flex; gap:8px;">
           <button
             @click="runSearch"
             style="padding:8px 12px; background:#4caf50; color:#fff; border:none; border-radius:6px; cursor:pointer;"
           >Apply Filters</button>
+          <button
+            @click="clearFilters"
+            style="padding:8px 12px; background:#f6f6f6; color:#333; border:1px solid #ccc; border-radius:6px; cursor:pointer;"
+          >Clear Filters</button>
         </div>
       </div>
     </div>
