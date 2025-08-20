@@ -65,7 +65,10 @@ function exitBulkMode() {
 /* ---------------- helpers: build & read query params ---------------- */
 function buildQueryParams() {
   const q: Record<string, string> = {};
-  if (searchQuery.value.trim()) q.q = searchQuery.value.trim();
+  if (searchQuery.value.trim()) {
+    // ✅ FIX: use "search" instead of "q"
+    q.search = searchQuery.value.trim();
+  }
   if (selectedStatuses.value.length) q.status = selectedStatuses.value.join(",");
   const g = genresInput.value.split(",").map(s => s.trim()).filter(Boolean);
   if (g.length) q.genre = g.join(",");
@@ -86,7 +89,8 @@ function buildQueryParams() {
 }
 
 function applyFromRoute(query: Record<string, any>) {
-  searchQuery.value = (query.q as string) || "";
+  // ✅ FIX: also read "search"
+  searchQuery.value = (query.search as string) || "";
   const statusStr = (query.status as string) || "";
   selectedStatuses.value = statusStr ? statusStr.split(",").map(s => s.trim()).filter(Boolean) : [];
   genresInput.value = (query.genre as string) || "";
@@ -141,6 +145,35 @@ function openDrama(d: Drama) {
     params: { id: d.id },
     query: route.query, // <-- keep current filters
   });
+}
+
+/* Bulk delete handler */
+async function bulkDelete() {
+  if (selectedCount.value === 0) return;
+  try {
+    const ids = [...selected.value];
+    await http.post("/dramas/bulk-delete/", { ids });
+    dramas.value = dramas.value.filter(d => !selected.value.has(d.id));
+    successMessage.value = `Deleted ${ids.length} dramas.`;
+    setTimeout(() => (successMessage.value = ""), 3000);
+    exitBulkMode();
+  } catch (err) {
+    console.error(err);
+    error.value = "Failed to delete dramas.";
+  }
+}
+
+/* Delete single drama */
+async function deleteDrama(id: number) {
+  try {
+    await http.delete(`/dramas/${id}/`);
+    dramas.value = dramas.value.filter(d => d.id !== id);
+    successMessage.value = "Drama deleted.";
+    setTimeout(() => (successMessage.value = ""), 3000);
+  } catch (err) {
+    console.error(err);
+    error.value = "Failed to delete drama.";
+  }
 }
 
 /* react to URL changes (and on mount) */
