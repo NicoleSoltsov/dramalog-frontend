@@ -7,7 +7,7 @@ type Entry = {
   id: number;
   user: number;
   user_display?: string;
-  drama: number; // tmdb_id
+  drama: number;
   season: number;
   episode: number;
   title: string;
@@ -98,13 +98,9 @@ async function createEntry() {
     content.value = "";
   } catch (e: any) {
     const d = e?.response?.data;
-    error.value =
-      d?.drama?.[0] || d?.season?.[0] || d?.episode?.[0] ||
-      d?.title?.[0] || d?.content?.[0] ||
-      d?.detail || "Failed to save entry";
-  } finally {
-    saving.value = false;
-  }
+    error.value = d?.drama?.[0] || d?.season?.[0] || d?.episode?.[0] ||
+                  d?.title?.[0] || d?.content?.[0] || d?.detail || "Failed to save entry";
+  } finally { saving.value = false; }
 }
 
 function beginEdit(e: Entry) {
@@ -132,9 +128,7 @@ async function saveEdit(id: number) {
     cancelEdit();
   } catch (e: any) {
     alert(e?.response?.data?.detail || "Failed to update entry");
-  } finally {
-    saving.value = false;
-  }
+  } finally { saving.value = false; }
 }
 
 async function deleteEntry(id: number) {
@@ -156,7 +150,7 @@ watch(() => props.dramaPk, async () => { await loadSeasons(); });
 watch(() => props.tmdbId, async () => { await loadEntries(); });
 
 onMounted(async () => {
-  await Promise.all([loadSeasons()]);
+  await loadSeasons();
   await loadEntries();
 });
 </script>
@@ -183,15 +177,10 @@ onMounted(async () => {
       </div>
 
       <input v-model="title" class="input" placeholder="Entry title (optional)…" />
-      <textarea
-        v-model="content"
-        class="textarea"
-        rows="4"
-        placeholder="Your thoughts about this episode…"
-      ></textarea>
+      <textarea v-model="content" class="textarea" rows="4" placeholder="Your thoughts about this episode…"></textarea>
 
       <div class="actions">
-        <button class="btn" :disabled="saving" @click="createEntry">
+        <button class="btn btn-primary" :disabled="saving" @click="createEntry">
           {{ saving ? "Saving…" : "Add Entry" }}
         </button>
         <span v-if="error" class="error">{{ error }}</span>
@@ -200,12 +189,11 @@ onMounted(async () => {
 
     <!-- List -->
     <div class="list">
-      <div v-if="listLoading">Loading journal…</div>
+      <div v-if="listLoading" class="muted">Loading journal…</div>
       <p v-if="listError" class="error">{{ listError }}</p>
 
       <ul v-if="!listLoading && !listError" class="items">
         <li v-for="e in entries" :key="e.id" class="item">
-          <!-- view -->
           <template v-if="editingId !== e.id">
             <div class="item-head">
               <div class="meta">
@@ -220,23 +208,21 @@ onMounted(async () => {
             </div>
 
             <div v-if="e.title" class="entry-title">{{ e.title }}</div>
-            <div class="entry-content">
-              <p>{{ e.content }}</p>
-            </div>
+            <div class="entry-content"><p>{{ e.content }}</p></div>
           </template>
 
-          <!-- edit -->
           <template v-else>
-            <div class="muted small">Editing S{{ e.season }}E{{ e.episode }} • {{ new Date(e.created_at).toLocaleString() }}</div>
+            <div class="muted small">Editing S{{ e.season }}E{{ e.episode }}</div>
             <input v-model="editTitle" class="input" placeholder="Title (optional)" />
             <textarea v-model="editContent" class="textarea" rows="4"></textarea>
             <div class="item-actions">
-              <button class="btn btn-primary" :disabled="saving" @click="saveEdit(e.id)">{{ saving ? "Saving…" : "Save" }}</button>
+              <button class="btn btn-primary" :disabled="saving" @click="saveEdit(e.id)">
+                {{ saving ? "Saving…" : "Save" }}
+              </button>
               <button class="btn btn-ghost" :disabled="saving" @click="cancelEdit">Cancel</button>
             </div>
           </template>
         </li>
-
         <li v-if="!entries.length" class="muted">No journal entries yet.</li>
       </ul>
     </div>
@@ -244,38 +230,51 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.journal { display: grid; gap: 12px; }
+:root, :host {
+  --primary: #7c3aed;
+  --pink: #f472b6;
+  --cyan: #06b6d4;
+  --danger: #ef4444;
+  --ring: rgba(124,58,237,.25);
+}
+
+.journal { display: grid; gap: 16px; }
 .compose {
-  border: 1px solid #e8e8e8; border-radius: 10px; padding: 12px; background:#fff;
+  border: 2px solid var(--primary); border-radius: 12px;
+  padding: 14px; background: #faf5ff;
 }
 .row { display:flex; gap:12px; flex-wrap:wrap; }
-.field { display:grid; gap:4px; min-width: 160px; }
+.field { display:grid; gap:4px; min-width: 150px; }
 .input, .select, .textarea {
-  width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px;
+  width: 100%; padding: 8px 10px;
+  border: 1px solid #d8b4fe; border-radius: 8px;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring);
 }
 .actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
-.list { }
-.items { list-style:none; padding:0; display:grid; gap:10px; }
+
+.items { list-style:none; padding:0; display:grid; gap:12px; }
 .item {
-  border:1px solid #eee; border-radius:10px; padding:10px; background:#fff;
+  border:1px solid #ddd; border-radius:10px;
+  padding:12px; background: linear-gradient(135deg,#faf5ff,#fff0f6);
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
 }
 .item-head { display:flex; justify-content:space-between; gap:8px; align-items:center; }
-.item-actions { display:flex; gap:8px; }
-.meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.chip { background:#eef6ff; color:#1e66f5; border-radius:999px; padding:2px 8px; font-size:.85rem; }
-.muted { opacity:.7; }
-.small { font-size:.9rem; }
-
-/* fixed-height scroll so long content doesn't blow layout */
-.entry-content {
-  margin-top: 4px; max-height: 160px; overflow: auto; padding-right: 6px;
+.meta { display:flex; gap:8px; flex-wrap:wrap; }
+.chip {
+  background: var(--cyan); color:#fff; border-radius:999px;
+  padding:2px 10px; font-size:.85rem; font-weight:600;
 }
-.entry-content p { margin: 0; white-space: pre-wrap; overflow-wrap:anywhere; word-break: break-word; }
+.entry-title { font-weight:700; margin-top:6px; }
+.entry-content { margin-top:4px; white-space:pre-wrap; }
 
-/* Buttons */
-.btn { padding:8px 12px; border:1px solid #ccc; border-radius:8px; background:#f6f6f6; cursor:pointer; }
-.btn-ghost { background:#fff; }
-.btn-primary { border-color:#2e7d32; background:#43a047; color:#fff; }
-.btn-danger { border:none; background:#ff4d4d; color:#fff; }
-.error { color:#b00020; }
+.muted { color:#64748b; }
+.small { font-size:.85rem; }
+
+.btn { padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+.btn-primary { background: linear-gradient(90deg,#7c3aed,#06b6d4); color:#fff; border:none; }
+.btn-ghost { background:#fff; border:1px solid #d8b4fe; color:var(--primary); }
+.btn-danger { background: var(--danger); border:none; color:#fff; }
+.error { color:#dc2626; font-weight:600; }
 </style>

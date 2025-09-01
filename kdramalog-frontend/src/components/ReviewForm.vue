@@ -37,8 +37,8 @@ const submit = async () => {
 </script>
 
 <template>
-  <form @submit.prevent="submit" style="margin-bottom:12px">
-    <div style="display:flex;gap:8px;align-items:center">
+  <form @submit.prevent="submit" class="review-form">
+    <div class="rating-row">
       <label for="rating">Rating</label>
       <input
         id="rating"
@@ -46,20 +46,92 @@ const submit = async () => {
         min="1"
         max="10"
         v-model.number="rating"
-        style="width:70px;padding:4px;border:1px solid #ccc;border-radius:6px"
+        class="rating-input"
       />
-      <span style="opacity:.7;font-size:.9rem">/10</span>
+      <span class="rating-suffix">/10</span>
     </div>
 
     <textarea
       v-model="content"
       placeholder="Your thoughts…"
-      style="width:100%;padding:8px;margin:8px 0;border:1px solid #ccc;border-radius:6px"
+      class="review-textarea"
     ></textarea>
 
-    <button :disabled="saving" style="padding:8px 12px;border:1px solid #ccc;border-radius:6px">
-      {{ saving ? "Posting…" : "Post" }}
-    </button>
-    <span v-if="error" style="color:#b00020;margin-left:8px">{{ error }}</span>
+    <div class="actions">
+      <button :disabled="saving" class="btn-submit">
+        {{ saving ? "Posting…" : "Post" }}
+      </button>
+      <span v-if="error" class="error">{{ error }}</span>
+    </div>
   </form>
 </template>
+
+<style scoped>
+.review-form {
+  margin-bottom: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+/* Rating row */
+.rating-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rating-input {
+  width: 70px;
+  padding: 6px;
+  border: 2px solid #a78bfa; /* purple */
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+  color: #4c1d95;
+}
+.rating-suffix {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+/* Textarea */
+.review-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #a78bfa;
+  border-radius: 10px;
+  font-size: 1rem;
+  resize: vertical;
+  min-height: 80px;
+  background: #faf5ff; /* lavender */
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-submit {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899); /* purple → pink */
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #dc2626;
+  font-weight: 500;
+}
+</style>

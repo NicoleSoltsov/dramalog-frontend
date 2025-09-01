@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch } from "vue";
 import http from "@/api/http";
 
 const props = defineProps<{ dramaTmdbId: number }>();
@@ -30,7 +30,10 @@ const load = async () => {
       url = data?.next || null; // DRF pagination has absolute URL
     }
     // newest first
-    allReviews.value.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    allReviews.value.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   } catch (e: any) {
     error.value = e?.response?.data?.detail || "Failed to load reviews";
   } finally {
@@ -72,7 +75,8 @@ async function saveEdit(id: number) {
       rating: Number(editRating.value),
     };
     if (!payload.content) throw new Error("Content cannot be empty.");
-    if (payload.rating < 1 || payload.rating > 10) throw new Error("Rating must be between 1 and 10.");
+    if (payload.rating < 1 || payload.rating > 10)
+      throw new Error("Rating must be between 1 and 10.");
 
     const { data } = await http.patch(`/reviews/${id}/`, payload);
     const idx = allReviews.value.findIndex((x) => x.id === id);
@@ -112,82 +116,73 @@ defineExpose({ load });
 </script>
 
 <template>
-  <div>
-    <p v-if="loading">Loading…</p>
-    <p v-if="error" style="color:#b00020">{{ error }}</p>
+  <div class="reviews">
+    <p v-if="loading" class="muted">Loading…</p>
+    <p v-if="error" class="error">{{ error }}</p>
 
-    <ul v-if="!loading && !error" style="display:grid;gap:8px;list-style:none;padding:0">
-      <li
-        v-for="r in allReviews"
-        :key="r.id"
-        style="border:1px solid #ddd;padding:8px;border-radius:8px"
-      >
+    <ul v-if="!loading && !error" class="list">
+      <li v-for="r in allReviews" :key="r.id" class="item">
         <!-- VIEW MODE -->
         <template v-if="editingId !== r.id">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-            <div style="opacity:.7;font-size:.9rem">
+          <div class="head">
+            <div class="who muted">
               {{ r.user }} • {{ formatDateTime(r.created_at) }}
             </div>
-            <div style="display:flex; gap:8px;">
+            <div class="actions">
+              <button class="btn btn-ghost" @click="beginEdit(r)">Edit</button>
               <button
-                @click="beginEdit(r)"
-                style="padding:6px 10px; border:1px solid #ccc; background:#f6f6f6; border-radius:6px; cursor:pointer;"
-              >
-                Edit
-              </button>
-              <button
+                class="btn btn-danger"
                 :disabled="deletingId === r.id"
                 @click="deleteReview(r.id)"
-                style="padding:6px 10px; border:none; background:#ff4d4d; color:white; border-radius:6px; cursor:pointer; opacity: var(--op, 1);"
-                :style="{ '--op': deletingId === r.id ? 0.6 : 1 }"
               >
                 {{ deletingId === r.id ? "Deleting…" : "Delete" }}
               </button>
             </div>
           </div>
 
-          <div style="font-weight:600; margin-top:6px; text-align:center;">⭐ {{ r.rating }}/10</div>
-          <p style="margin:.25rem 0 0; white-space:pre-wrap; text-align:center;">{{ r.content }}</p>
+          <div class="rating">⭐ {{ r.rating }}/10</div>
+          <div class="content">
+            <p>{{ r.content }}</p>
+          </div>
         </template>
 
         <!-- EDIT MODE -->
         <template v-else>
-          <div style="opacity:.7;font-size:.9rem; margin-bottom:6px;">
+          <div class="muted small" style="margin-bottom:6px;">
             Editing review by {{ r.user }} • {{ formatDateTime(r.created_at) }}
           </div>
 
-          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-            <label :for="`rating-${r.id}`">Rating</label>
+          <div class="edit-row">
+            <label :for="`rating-${r.id}`" class="lbl">Rating</label>
             <input
               :id="`rating-${r.id}`"
               type="number"
               min="1"
               max="10"
               v-model.number="editRating"
-              style="width:70px;padding:4px;border:1px solid #ccc;border-radius:6px"
+              class="num"
             />
-            <span style="opacity:.7;font-size:.9rem">/10</span>
+            <span class="suffix">/10</span>
           </div>
 
           <textarea
             v-model="editContent"
-            style="width:100%;padding:8px;margin:8px 0;border:1px solid #ccc;border-radius:6px"
+            class="area"
             rows="3"
           ></textarea>
 
-          <div style="display:flex; gap:8px;">
+          <div class="actions">
             <button
+              class="btn btn-primary"
               :disabled="saving"
               @click="saveEdit(r.id)"
-              style="padding:6px 12px; border:1px solid #2e7d32; background:#43a047; color:white; border-radius:6px; cursor:pointer; opacity: var(--op, 1);"
-              :style="{ '--op': saving ? 0.7 : 1 }"
             >
               {{ saving ? "Saving…" : "Save" }}
             </button>
             <button
+              class="btn btn-ghost"
               :disabled="saving"
               @click="cancelEdit"
-              style="padding:6px 12px; border:1px solid #ccc; background:#f6f6f6; border-radius:6px; cursor:pointer;"
             >
               Cancel
             </button>
@@ -195,7 +190,115 @@ defineExpose({ load });
         </template>
       </li>
 
-      <li v-if="!loading && allReviews.length === 0" style="opacity:.7">No reviews yet.</li>
+      <li v-if="!loading && allReviews.length === 0" class="muted">
+        No reviews yet.
+      </li>
     </ul>
   </div>
 </template>
+
+<style scoped>
+:root, :host {
+  --primary: #7c3aed;  /* purple */
+  --accent:  #06b6d4;  /* cyan   */
+  --ring:    rgba(124,58,237,.25);
+  --danger:  #ef4444;
+}
+
+.reviews { }
+.muted { color:#64748b; }
+.error { color:#dc2626; font-weight:600; }
+
+/* List layout */
+.list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+}
+
+/* Card */
+.item {
+  border: 2px solid #e9d5ff;
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(135deg,#faf5ff,#ecfeff);
+  box-shadow: 0 4px 10px rgba(124,58,237,.06);
+}
+
+/* Header row */
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Rating badge */
+.rating {
+  margin-top: 6px;
+  font-weight: 700;
+  text-align: center;
+  background: linear-gradient(90deg,#8b5cf6,#06b6d4);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Review body — fixed-height scroll so long reviews don't blow layout */
+.content {
+  margin: .35rem 0 0;
+  max-height: 180px;         /* keeps box height reasonable for very long text */
+  overflow: auto;
+  padding-right: 6px;
+}
+.content p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;    /* ensure very long words/URLs wrap */
+  text-align: center;
+}
+
+/* Edit mode inputs */
+.edit-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.lbl { opacity:.85; font-weight:600; }
+.num {
+  width: 70px;
+  padding: 6px;
+  border: 2px solid #a78bfa;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+  color: #4c1d95;
+}
+.suffix { opacity:.75; font-size:.9rem; }
+.area {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #a78bfa;
+  border-radius: 10px;
+  background: #fff;
+  outline: none;
+}
+.area:focus, .num:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+/* Buttons */
+.actions { display:flex; gap:8px; align-items:center; }
+.btn { padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+.btn-ghost { background:#fff; border:1px solid #d8b4fe; color:#6d28d9; }
+.btn-primary { background: linear-gradient(90deg,#8b5cf6,#06b6d4); color:#fff; border:none; }
+.btn-danger { background: var(--danger); color:#fff; border:none; }
+.btn:disabled { opacity:.65; cursor:not-allowed; }
+</style>
